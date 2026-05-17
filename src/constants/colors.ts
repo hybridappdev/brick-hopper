@@ -6,6 +6,8 @@ export const COLORS = {
   coin: '#f5c542',
   enemy: '#9b59b6',
   jumpPad: '#3498db',
+  goalInactive: 'rgba(93, 211, 158, 0.35)',
+  goalActive: '#2ecc71',
   parallaxFar: '#0f3460',
   parallaxMid: '#162447',
   parallaxGround: '#1b1b2f',

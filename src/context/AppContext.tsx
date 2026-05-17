@@ -7,7 +7,14 @@ import React, {
   useState,
 } from 'react';
 import { LEVEL_COUNT } from '../constants/levels';
-import { createId, loadGameData, mergeHighScore, saveGameData } from '../storage/gameStorage';
+import {
+  createDefaultLevelRecords,
+  createId,
+  loadGameData,
+  mergeHighScore,
+  type LevelRecord,
+  saveGameData,
+} from '../storage/gameStorage';
 import {
   DEFAULT_SETTINGS,
   type AppScreen,
@@ -26,13 +33,18 @@ interface AppContextValue {
   highScores: HighScoreEntry[];
   bestScore: number;
   unlockedLevelMaxIndex: number;
+  levelRecords: LevelRecord[];
   gameStartLevel: number;
   gameRunMode: GameRunMode;
   navigate: (screen: AppScreen) => void;
   startGame: () => void;
+  startCampaignFrom: (levelIndex: number) => void;
   startLevel: (levelIndex: number) => void;
   exitGame: () => void;
-  unlockLevelProgress: (completedLevelIndex: number) => Promise<void>;
+  recordLevelResult: (
+    completedLevelIndex: number,
+    result: { score: number; timeMs: number },
+  ) => Promise<void>;
   saveProfile: (displayName: string, avatarColor: string) => Promise<void>;
   updateSettings: (patch: Partial<GameSettings>) => Promise<void>;
   recordRun: (result: RunResult) => Promise<void>;
@@ -49,6 +61,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [highScores, setHighScores] = useState<HighScoreEntry[]>([]);
   const [bestScore, setBestScore] = useState(0);
   const [unlockedLevelMaxIndex, setUnlockedLevelMaxIndex] = useState(0);
+  const [levelRecords, setLevelRecords] = useState<LevelRecord[]>(
+    createDefaultLevelRecords(),
+  );
   const [gameStartLevel, setGameStartLevel] = useState(0);
   const [gameRunMode, setGameRunMode] = useState<GameRunMode>('campaign');
 
@@ -65,6 +80,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setHighScores(data.highScores);
       setBestScore(data.bestScore);
       setUnlockedLevelMaxIndex(data.unlockedLevelMaxIndex);
+      setLevelRecords(data.levelRecords);
       setScreen(data.profile ? 'intro' : 'createProfile');
       setReady(true);
     })();
@@ -81,6 +97,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       highScores?: HighScoreEntry[];
       bestScore?: number;
       unlockedLevelMaxIndex?: number;
+      levelRecords?: LevelRecord[];
     }) => {
       const nextProfile = patch.profile !== undefined ? patch.profile : profile;
       const nextSettings = patch.settings ?? settings;
@@ -90,6 +107,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         patch.unlockedLevelMaxIndex !== undefined
           ? patch.unlockedLevelMaxIndex
           : unlockedLevelMaxIndex;
+      const nextRecords = patch.levelRecords ?? levelRecords;
 
       await saveGameData({
         profile: nextProfile,
@@ -97,6 +115,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         highScores: nextHighScores,
         bestScore: nextBest,
         unlockedLevelMaxIndex: nextUnlocked,
+        levelRecords: nextRecords,
       });
 
       if (patch.profile !== undefined) {
@@ -114,8 +133,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (patch.unlockedLevelMaxIndex !== undefined) {
         setUnlockedLevelMaxIndex(patch.unlockedLevelMaxIndex);
       }
+      if (patch.levelRecords) {
+        setLevelRecords(patch.levelRecords);
+      }
     },
-    [profile, settings, highScores, bestScore, unlockedLevelMaxIndex],
+    [profile, settings, highScores, bestScore, unlockedLevelMaxIndex, levelRecords],
   );
 
   const navigate = useCallback((next: AppScreen) => {
@@ -128,24 +150,56 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setScreen('game');
   }, []);
 
+  const startCampaignFrom = useCallback((levelIndex: number) => {
+    setGameStartLevel(levelIndex);
+    setGameRunMode('campaign');
+    setScreen('game');
+  }, []);
+
   const startLevel = useCallback((levelIndex: number) => {
     setGameStartLevel(levelIndex);
     setGameRunMode('level');
     setScreen('game');
   }, []);
 
-  const unlockLevelProgress = useCallback(
-    async (completedLevelIndex: number) => {
+  const recordLevelResult = useCallback(
+    async (
+      completedLevelIndex: number,
+      result: { score: number; timeMs: number },
+    ) => {
+      const records = [...levelRecords];
+      while (records.length < LEVEL_COUNT) {
+        records.push({ completed: false, bestScore: 0, bestTimeMs: 0 });
+      }
+
+      const prev = records[completedLevelIndex] ?? {
+        completed: false,
+        bestScore: 0,
+        bestTimeMs: 0,
+      };
+
+      const bestTimeMs =
+        prev.bestTimeMs <= 0
+          ? result.timeMs
+          : Math.min(prev.bestTimeMs, result.timeMs);
+
+      records[completedLevelIndex] = {
+        completed: true,
+        bestScore: Math.max(prev.bestScore, result.score),
+        bestTimeMs,
+      };
+
       const nextUnlocked = Math.min(
         LEVEL_COUNT - 1,
         Math.max(unlockedLevelMaxIndex, completedLevelIndex + 1),
       );
-      if (nextUnlocked === unlockedLevelMaxIndex) {
-        return;
-      }
-      await persist({ unlockedLevelMaxIndex: nextUnlocked });
+
+      await persist({
+        levelRecords: records,
+        unlockedLevelMaxIndex: nextUnlocked,
+      });
     },
-    [unlockedLevelMaxIndex, persist],
+    [levelRecords, unlockedLevelMaxIndex, persist],
   );
 
   const exitGame = useCallback(() => {
@@ -222,13 +276,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       highScores,
       bestScore,
       unlockedLevelMaxIndex,
+      levelRecords,
       gameStartLevel,
       gameRunMode,
       navigate,
       startGame,
+      startCampaignFrom,
       startLevel,
       exitGame,
-      unlockLevelProgress,
+      recordLevelResult,
       saveProfile,
       updateSettings,
       recordRun,
@@ -242,13 +298,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       highScores,
       bestScore,
       unlockedLevelMaxIndex,
+      levelRecords,
       gameStartLevel,
       gameRunMode,
       navigate,
       startGame,
+      startCampaignFrom,
       startLevel,
       exitGame,
-      unlockLevelProgress,
+      recordLevelResult,
       saveProfile,
       updateSettings,
       recordRun,

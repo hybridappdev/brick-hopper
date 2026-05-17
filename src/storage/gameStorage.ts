@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LEVEL_COUNT } from '../constants/levels';
 import { DEFAULT_AMBIENCE } from '../constants/ambienceDefaults';
 import {
   DEFAULT_SETTINGS,
@@ -10,6 +11,12 @@ import { STORAGE_KEYS } from './keys';
 
 export const MAX_HIGH_SCORES = 10;
 
+export interface LevelRecord {
+  completed: boolean;
+  bestScore: number;
+  bestTimeMs: number;
+}
+
 export interface PersistedGameData {
   profile: UserProfile | null;
   settings: GameSettings;
@@ -17,6 +24,36 @@ export interface PersistedGameData {
   bestScore: number;
   /** Highest level index the player may start from the picker (0-based). */
   unlockedLevelMaxIndex: number;
+  levelRecords: LevelRecord[];
+}
+
+export function createDefaultLevelRecords(count = LEVEL_COUNT): LevelRecord[] {
+  return Array.from({ length: count }, () => ({
+    completed: false,
+    bestScore: 0,
+    bestTimeMs: 0,
+  }));
+}
+
+function normalizeLevelRecords(records: unknown, count: number): LevelRecord[] {
+  const base = createDefaultLevelRecords(count);
+  if (!Array.isArray(records)) {
+    return base;
+  }
+
+  for (let i = 0; i < count; i++) {
+    const entry = records[i] as Partial<LevelRecord> | undefined;
+    if (!entry || typeof entry !== 'object') {
+      continue;
+    }
+    base[i] = {
+      completed: Boolean(entry.completed),
+      bestScore: typeof entry.bestScore === 'number' ? entry.bestScore : 0,
+      bestTimeMs: typeof entry.bestTimeMs === 'number' ? entry.bestTimeMs : 0,
+    };
+  }
+
+  return base;
 }
 
 const DEFAULT_DATA: PersistedGameData = {
@@ -25,6 +62,7 @@ const DEFAULT_DATA: PersistedGameData = {
   highScores: [],
   bestScore: 0,
   unlockedLevelMaxIndex: 0,
+  levelRecords: createDefaultLevelRecords(),
 };
 
 export async function loadGameData(): Promise<PersistedGameData> {
@@ -47,6 +85,7 @@ export async function loadGameData(): Promise<PersistedGameData> {
         typeof parsed.unlockedLevelMaxIndex === 'number'
           ? Math.max(0, parsed.unlockedLevelMaxIndex)
           : 0,
+      levelRecords: normalizeLevelRecords(parsed.levelRecords, LEVEL_COUNT),
     };
   } catch {
     return { ...DEFAULT_DATA };

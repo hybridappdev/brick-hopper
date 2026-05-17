@@ -13,7 +13,7 @@ export const CollisionSystem = (
   args: { time: { delta: number } },
 ): EntityMap => {
   const physics = getPhysicsContext(entities);
-  if (physics.levelComplete) {
+  if (physics.levelComplete || physics.gameOver) {
     return entities;
   }
 

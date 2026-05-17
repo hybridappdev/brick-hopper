@@ -9,7 +9,7 @@ import {
 } from '../constants';
 import type { EntityMap, GameEntity, HopLevel } from '../types/ecs';
 import { isGameEntity } from '../types/ecs';
-import { countRemainingCoins } from './levelProgress';
+import { syncCoinsCleared } from './winCondition';
 import { getPhysicsContext } from './physics';
 import Matter from 'matter-js';
 
@@ -17,21 +17,6 @@ function pickupRadius(hopSpeed: HopLevel): number {
   const slowBonus = hopSpeed === 0 ? COIN_PICKUP_SLOW_BONUS : 0;
   const playerReach = Math.max(PLAYER_WIDTH, PLAYER_HEIGHT) * 0.45;
   return COIN_PICKUP_RADIUS + COIN_RADIUS + playerReach + slowBonus;
-}
-
-function checkLevelComplete(
-  entities: EntityMap,
-  dispatch: GameEngineUpdateEventOptionType['dispatch'],
-): void {
-  const physics = getPhysicsContext(entities);
-  if (physics.levelComplete) {
-    return;
-  }
-
-  if (countRemainingCoins(entities) === 0) {
-    physics.levelComplete = true;
-    dispatch({ type: 'level-complete', score: physics.score });
-  }
 }
 
 export function canPickupCoins(entities: EntityMap): boolean {
@@ -61,7 +46,10 @@ export function collectCoin(
 
   dispatch({ type: 'coin-collected', score: physics.score });
   dispatch({ type: 'score-updated', score: physics.score });
-  checkLevelComplete(entities, dispatch);
+  syncCoinsCleared(entities);
+  if (physics.coinsCleared) {
+    dispatch({ type: 'coins-cleared' });
+  }
 }
 
 /**

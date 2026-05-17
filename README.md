@@ -1,13 +1,14 @@
 # Brick Hopper
 
-A portrait side-scrolling platformer built with **Expo** and **React Native**. Tilt your phone to explore while a brick auto-hops at the center of the screen. Collect every coin across two levels, stomp enemies from above, and use jump pads to reach the end.
+A portrait side-scrolling platformer built with **Expo** and **React Native**. Tilt your phone to explore while a brick auto-hops at the center of the screen. Collect every coin, reach the exit flag, stomp enemies from above, and use jump pads to clear eight levels.
 
 ## App flow
 
 1. **Create profile** — name + brick color (first launch)
-2. **Intro** — Play, High Scores, Settings
-3. **Game** — Menu (save run) or Restart; level complete → Next Level / Main Menu
-4. **High scores** — top 10 runs saved locally (AsyncStorage)
+2. **Intro** — Play (full campaign), Levels (picker), High Scores, Settings
+3. **Game** — 3 lives per run; collect coins then touch the exit flag to finish each level
+4. **Level picker** — replay unlocked levels; see difficulty, best time, and score
+5. **High scores** — top 10 campaign runs saved locally (AsyncStorage)
 
 ## How to play
 
@@ -20,7 +21,9 @@ A portrait side-scrolling platformer built with **Expo** and **React Native**. T
 | Stomp enemy | Land on top while falling | Same |
 | Restart | Tap **Restart** (top right) | Same |
 
-**Goal:** Collect all coins in each level. Land on enemies from above to defeat them (+25 pts). Touch an enemy from the side or fall off the world and you respawn at the last safe landing (checkpoint). Beat Level 1, then tap **Next Level** to continue with your score carried over.
+**Goal per level:** Collect **all coins**, then touch the **green exit flag** at the end. Land on enemies from above to defeat them (+25 pts). Side hits and falling off the world cost a life — you have **3 lives per run**. Lose all lives and the run ends (Retry or Main Menu).
+
+**Campaign:** **Play** runs levels 1→8 with score and lives carried across levels. **Levels** lets you practice any unlocked stage individually.
 
 ## Getting started
 
@@ -48,54 +51,44 @@ Tilt controls work best on a **real device** — simulators and web do not provi
 - [Matter.js](https://brm.io/matter-js/) — 2D physics (platforms, player, sensors)
 - [expo-sensors](https://docs.expo.dev/versions/latest/sdk/accelerometer/) — accelerometer tilt input
 - [expo-haptics](https://docs.expo.dev/versions/latest/sdk/haptics/) — coin, hop, stomp, and hit feedback
-- [@react-native-async-storage/async-storage](https://docs.expo.dev/versions/latest/sdk/async-storage/) — profile, settings, high scores
+- [@react-native-async-storage/async-storage](https://docs.expo.dev/versions/latest/sdk/async-storage/) — profile, settings, high scores, level progress
 
 ## Project structure
 
 ```
 src/
 ├── GameEngine.tsx       # Session state, HUD, game loop wiring
-├── App.tsx              # Root layout + safe area
-├── constants/           # Tuning (hop, tilt, level layout, colors)
-│   └── levels/          # Level registry (buildLevel, LEVEL_COUNT)
-├── components/          # ECS components (Position, Velocity, Collider, Sprite)
-├── entities/            # Entity factories (Player, Coin, Platform, …)
-├── systems/             # Per-frame logic (physics, camera, collisions, render)
-├── renderers/           # Visual layers (entities, parallax, sunset background)
-├── ui/                  # TiltControls, HopSpeedControls, overlays, restart
-├── utils/               # Camera, coins, respawn, stomp, level bootstrap
-└── types/               # ECS and engine typings
+├── constants/           # Tuning + level layout (level.ts … level8.ts)
+│   └── levels/          # Registry (buildLevel, LEVEL_COUNT, meta)
+├── entities/            # Player, Coin, Platform, Enemy, Goal, …
+├── systems/             # Physics, collisions, patrol, movement, render
+├── ui/                  # HUD, overlays, level picker
+└── storage/             # AsyncStorage persistence
 ```
 
 ### Systems (update order)
 
 1. **TimerSystem** — per-level elapsed time  
-2. **AmbientSystem** — day/night + seasonal sky (continuous across levels)  
+2. **AmbientSystem** — day/night + weather  
 3. **CollisionSystem** — ground detection, coyote time  
-4. **InteractionSystem** — coins, enemies (stomp or hurt), jump pads  
+4. **InteractionSystem** — coins, enemies, jump pads, exit goal  
 5. **PatrolSystem** — moving platforms and enemies  
 6. **CameraSystem** — horizontal scroll from tilt  
 7. **MovementSystem** — brick locked to viewport center, auto-hop  
 8. **PhysicsSystem** — Matter.js step  
-9. **RenderSystem** — world → screen positions via camera offset  
+9. **RenderSystem** — world → screen positions  
 
-The sky cycles through **dawn → day → dusk → night** (~90s) and **spring → summer → autumn → winter** (~6 min) with tint overlays, stars, and sun/moon on the parallax sunset artwork. Tune cycles in `src/constants/ambient.ts`.
-
-Level data: `src/constants/level.ts` (Level 1) and `src/constants/level2.ts` (Level 2), loaded via `src/constants/levels/index.ts`. Start coins are placed on the viewport-center path so they stay collectible across screen sizes.
+Level data lives in `src/constants/level.ts` through `level8.ts`, registered in `src/constants/levels/index.ts`.
 
 ## Configuration
 
-Key tuning files:
-
 | File | Purpose |
 |------|---------|
-| `src/constants/tilt.ts` | Dead zone, scroll speed |
+| `src/constants/world.ts` | Lives per run, fall respawn distance |
 | `src/constants/hop.ts` | Auto-hop intervals and impulse |
 | `src/constants/coin.ts` | Pickup radius and score value |
-| `src/constants/enemy.ts` | Patrol speed, stomp score, bounce |
-| `src/constants/world.ts` | World size, camera bounds |
-| `src/constants/level.ts` | Level 1 layout |
-| `src/constants/level2.ts` | Level 2 layout |
+| `src/constants/enemy.ts` | Patrol speed, stomp score |
+| `src/constants/levels/meta.ts` | Level titles and difficulty |
 
 ## License
 

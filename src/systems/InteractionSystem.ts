@@ -6,8 +6,11 @@ import { isGameEntity } from '../types/ecs';
 import { collectCoin, collectCoinsInRange } from '../utils/coinCollect';
 import { defeatEnemy } from '../utils/defeatEnemy';
 import { isStompHit } from '../utils/enemyStomp';
+import { loseLife } from '../utils/lives';
 import { respawnPlayer } from '../utils/playerRespawn';
 import { getPhysicsContext } from '../utils/physics';
+import { syncCoinsCleared, tryCompleteLevel } from '../utils/winCondition';
+import { COLORS } from '../constants';
 
 function findEntityByBody(
   entities: EntityMap,
@@ -77,7 +80,13 @@ function registerInteractionHandlers(
           respawnPlayer(player, entities);
           player.invincibleUntilMs = 800;
           dispatch({ type: 'player-hit' });
+          loseLife(physics, dispatch);
         }
+        continue;
+      }
+
+      if (other?.entity.entityType === 'goal') {
+        tryCompleteLevel(entities, dispatch);
         continue;
       }
 
@@ -110,8 +119,19 @@ export const InteractionSystem = (
   registerInteractionHandlers(entities, player, args.dispatch);
 
   const physics = getPhysicsContext(entities);
-  if (!physics.levelComplete) {
+  if (!physics.levelComplete && !physics.gameOver) {
     collectCoinsInRange(entities, player, physics.input.hopSpeed, args.dispatch);
+    syncCoinsCleared(entities);
+
+    for (const key of Object.keys(entities)) {
+      const entity = entities[key];
+      if (entity && isGameEntity(entity) && entity.entityType === 'goal') {
+        entity.goalReady = physics.coinsCleared;
+        entity.sprite.color = physics.coinsCleared
+          ? COLORS.goalActive
+          : COLORS.goalInactive;
+      }
+    }
   }
 
   return entities;

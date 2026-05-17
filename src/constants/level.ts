@@ -31,6 +31,14 @@ export interface JumpPadDef {
   y: number;
 }
 
+export interface GoalDef {
+  id: string;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+}
+
 import { clampCameraX, getWorldCenterX } from '../utils/camera';
 
 export interface LevelDef {
@@ -41,6 +49,7 @@ export interface LevelDef {
   coins: CoinDef[];
   enemies: EnemyDef[];
   jumpPads: JumpPadDef[];
+  goal: GoalDef;
 }
 
 /** Wider platforms and coin trails for left/right exploration. */
@@ -110,5 +119,10 @@ export function buildLevel1(groundY: number, viewportWidth: number): LevelDef {
       { id: 'jump_pad_mid', x: 560, y: groundY - 108 },
       { id: 'jump_pad_high', x: 1040, y: groundY - 108 },
     ],
+    goal: {
+      id: 'goal_end',
+      x: 1780,
+      y: groundY - 208,
+    },
   };
 }

@@ -22,7 +22,7 @@ export function AppRoot() {
     unlockedLevelMaxIndex,
     exitGame,
     recordRun,
-    unlockLevelProgress,
+    recordLevelResult,
   } = useApp();
 
   useEffect(() => {
@@ -48,7 +48,7 @@ export function AppRoot() {
         unlockedLevelMaxIndex={unlockedLevelMaxIndex}
         onExit={exitGame}
         onRunEnd={recordRun}
-        onLevelComplete={unlockLevelProgress}
+        onLevelComplete={recordLevelResult}
       />
     );
   }

@@ -13,6 +13,8 @@ import { formatElapsed } from '../utils/formatTime';
 interface GameTopBarProps {
   score: number;
   bestScore: number;
+  lives: number;
+  maxLives: number;
   remainingCoins: number;
   totalCoins: number;
   levelIndex: number;
@@ -46,6 +48,21 @@ function CoinIcon({ size = 13 }: { size?: number }) {
           },
         ]}
       />
+    </View>
+  );
+}
+
+function LivesDisplay({ lives, maxLives }: { lives: number; maxLives: number }) {
+  return (
+    <View style={styles.livesZone}>
+      {Array.from({ length: maxLives }, (_, i) => (
+        <Text
+          key={i}
+          style={[styles.heart, i < lives ? styles.heartFull : styles.heartEmpty]}
+        >
+          ♥
+        </Text>
+      ))}
     </View>
   );
 }
@@ -115,6 +132,8 @@ function ChromeButton({
 export function GameTopBar({
   score,
   bestScore,
+  lives,
+  maxLives,
   remainingCoins,
   totalCoins,
   levelIndex,
@@ -224,6 +243,10 @@ export function GameTopBar({
         <View style={styles.divider} />
 
         <CoinProgress collected={collectedCoins} total={totalCoins} />
+
+        <View style={styles.divider} />
+
+        <LivesDisplay lives={lives} maxLives={maxLives} />
 
         <View style={styles.divider} />
 
@@ -407,5 +430,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     opacity: 0.5,
     marginTop: 1,
+  },
+  livesZone: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    minWidth: 44,
+    justifyContent: 'center',
+  },
+  heart: {
+    fontSize: 14,
+    lineHeight: 16,
+  },
+  heartFull: {
+    color: COLORS.player,
+  },
+  heartEmpty: {
+    color: 'rgba(234, 234, 234, 0.2)',
   },
 });

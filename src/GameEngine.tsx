@@ -19,6 +19,7 @@ import { isGameEntity } from './types/ecs';
 import { TiltControls } from './ui/TiltControls';
 import { FloatingScorePopup } from './ui/FloatingScorePopup';
 import { GameTopBar } from './ui/GameTopBar';
+import { GameOverOverlay } from './ui/GameOverOverlay';
 import { LevelCompleteOverlay } from './ui/LevelCompleteOverlay';
 import { useCameraShake } from './ui/useCameraShake';
 import { COIN_PICKUP_GRACE_MS } from './constants/coin';
@@ -56,6 +57,7 @@ interface GameSession {
 interface SessionOptions {
   score?: number;
   ambientClockMs?: number;
+  lives?: number;
 }
 
 export interface GameEngineProps {
@@ -67,7 +69,10 @@ export interface GameEngineProps {
   unlockedLevelMaxIndex?: number;
   onExit: () => void;
   onRunEnd: (result: RunResult) => void;
-  onLevelComplete?: (completedLevelIndex: number) => void;
+  onLevelComplete?: (
+    completedLevelIndex: number,
+    result: { score: number; timeMs: number },
+  ) => void;
 }
 
 function createGameSession(
@@ -84,6 +89,9 @@ function createGameSession(
     options.ambientClockMs ?? 0,
     ambience,
   );
+  if (options.lives !== undefined) {
+    physics.lives = options.lives;
+  }
   const entities = createInitialEntities(physics);
   return { id, physics, entities };
 }
@@ -132,6 +140,8 @@ export function GameEngine({
   const [levelIndex, setLevelIndex] = useState(startLevelIndex);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [levelComplete, setLevelComplete] = useState(false);
+  const [gameOver, setGameOver] = useState(false);
+  const [lives, setLives] = useState(session.physics.lives);
   const [remainingCoins, setRemainingCoins] = useState(session.physics.totalCoins);
   const [skyColor, setSkyColor] = useState(session.physics.displayAmbient.skyColor);
   const [displayAmbient, setDisplayAmbient] = useState<AmbientSnapshot>(
@@ -228,6 +238,8 @@ export function GameEngine({
       setScore(options.score ?? 0);
       setElapsedMs(0);
       setLevelComplete(false);
+      setGameOver(false);
+      setLives(next.physics.lives);
       setIsNewBest(false);
       setIsOnPaceForBest(false);
       setRemainingCoins(next.physics.totalCoins);
@@ -260,6 +272,7 @@ export function GameEngine({
     startSession(nextIndex, {
       score: current.physics.score,
       ambientClockMs: current.physics.ambientClockMs,
+      lives: current.physics.lives,
     });
   }, [startSession]);
 
@@ -277,7 +290,7 @@ export function GameEngine({
     (isCampaignRunRef.current || levelIndex + 1 <= unlockedLevelMaxIndex);
 
   useEffect(() => {
-    if (levelComplete) {
+    if (levelComplete || gameOver) {
       const finalMs = sessionRef.current?.physics.elapsedMs ?? 0;
       setElapsedMs(finalMs);
       return;
@@ -289,6 +302,7 @@ export function GameEngine({
         return;
       }
       setElapsedMs(physics.elapsedMs);
+      setLives(physics.lives);
       setSkyColor(physics.displayAmbient.skyColor);
       const current = sessionRef.current;
       if (current) {
@@ -308,7 +322,7 @@ export function GameEngine({
       clearInterval(hudId);
       clearInterval(weatherId);
     };
-  }, [levelComplete, session.id]);
+  }, [levelComplete, gameOver, session.id]);
 
   const handleInputChange = useCallback((patch: InputPatch) => {
     const physics = sessionRef.current?.physics;
@@ -322,7 +336,7 @@ export function GameEngine({
   }, []);
 
   const handleGameEvent = useCallback(
-    (event: { type: string; score?: number }) => {
+    (event: { type: string; score?: number; lives?: number }) => {
       switch (event.type) {
         case 'score-updated':
           if (typeof event.score === 'number') {
@@ -352,6 +366,21 @@ export function GameEngine({
           playHitSound();
           triggerShake();
           break;
+        case 'life-lost':
+          if (typeof event.lives === 'number') {
+            setLives(event.lives);
+          }
+          break;
+        case 'game-over': {
+          playHitFeedback();
+          playHitSound();
+          triggerShake();
+          setGameOver(true);
+          if (typeof event.score === 'number') {
+            setScore(event.score);
+          }
+          break;
+        }
         case 'hop':
           playHopFeedback();
           playHopSound();
@@ -373,7 +402,10 @@ export function GameEngine({
             current !== null && current.physics.levelIndex >= LEVEL_COUNT - 1;
           if (current) {
             setRemainingCoins(countRemainingCoins(current.entities));
-            onLevelComplete?.(current.physics.levelIndex);
+            onLevelComplete?.(current.physics.levelIndex, {
+              score: currentScore,
+              timeMs: current.physics.elapsedMs,
+            });
           }
           if (isWin && isCampaignRunRef.current) {
             submitRun(true);
@@ -429,6 +461,8 @@ export function GameEngine({
       <GameTopBar
         score={score}
         bestScore={bestScore}
+        lives={lives}
+        maxLives={session.physics.maxLives}
         remainingCoins={remainingCoins}
         totalCoins={totalCoinsInLevel}
         levelIndex={levelIndex}
@@ -444,9 +478,18 @@ export function GameEngine({
 
       <TiltControls
         key={`tilt-${session.id}`}
-        enabled={!levelComplete}
+        enabled={!levelComplete && !gameOver}
         onInputChange={handleInputChange}
       />
+
+      {gameOver && (
+        <GameOverOverlay
+          score={score}
+          levelIndex={levelIndex}
+          onRetry={restartGame}
+          onMenu={onExit}
+        />
+      )}
 
       {levelComplete && (
         <LevelCompleteOverlay

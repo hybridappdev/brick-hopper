@@ -3,6 +3,7 @@ import { buildLevel } from '../constants/levels';
 import { createBackgroundEntities } from '../entities/Background';
 import { createCoinEntity } from '../entities/Coin';
 import { createEnemyEntity } from '../entities/Enemy';
+import { createGoalEntity } from '../entities/Goal';
 import { createJumpPadEntity } from '../entities/JumpPad';
 import { createPlatformEntity } from '../entities/Platform';
 import { createPlayerEntity } from '../entities/Player';
@@ -24,7 +25,9 @@ export function createInitialEntities(physics: PhysicsContext): EntityMap {
     cameraX: physics.camera.x,
   };
   physics.totalCoins = level.coins.length;
+  physics.coinsCleared = false;
   physics.levelComplete = false;
+  physics.gameOver = false;
   physics.elapsedMs = 0;
   physics.interactionHandlersRegistered = false;
 
@@ -80,6 +83,8 @@ export function createInitialEntities(physics: PhysicsContext): EntityMap {
       y: pad.y,
     });
   }
+
+  entities[level.goal.id] = createGoalEntity(physics.world, level.goal);
 
   const spawnY = level.playerSpawn.y;
   const centerX = getWorldCenterX(physics.camera.x, viewportWidth);

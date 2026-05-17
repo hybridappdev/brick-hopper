@@ -13,6 +13,7 @@ import {
 import type { EntityMap, GameEntity, HopLevel } from '../types/ecs';
 import { isGameEntity } from '../types/ecs';
 import { getWorldCenterX } from '../utils/camera';
+import { loseLife } from '../utils/lives';
 import { respawnPlayerAtSpawn } from '../utils/playerRespawn';
 import { getPhysicsContext } from '../utils/physics';
 
@@ -25,7 +26,7 @@ export const MovementSystem = (
   args: GameEngineUpdateEventOptionType,
 ): EntityMap => {
   const physics = getPhysicsContext(entities);
-  if (physics.levelComplete) {
+  if (physics.levelComplete || physics.gameOver) {
     return entities;
   }
 
@@ -169,11 +170,19 @@ function checkFallRespawn(
     return;
   }
 
+  if ((player.invincibleUntilMs ?? 0) > 0) {
+    return;
+  }
+
   const fallLine = physics.playerSpawn.y + FALL_RESPAWN_OFFSET_PX;
   if (player.position.y <= fallLine) {
     return;
   }
 
   respawnPlayerAtSpawn(player, physics);
+  player.invincibleUntilMs = 800;
   args.dispatch?.({ type: 'player-hit' });
+  if (args.dispatch) {
+    loseLife(physics, args.dispatch);
+  }
 }

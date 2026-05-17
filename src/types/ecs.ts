@@ -9,6 +9,7 @@ export type EntityType =
   | 'enemy'
   | 'coin'
   | 'jumpPad'
+  | 'goal'
   | 'decoration';
 
 export interface PositionComponent {
@@ -87,6 +88,8 @@ export interface GameEntity {
   patrol?: PatrolComponent;
   /** Jump pad: upward impulse applied on contact. */
   jumpForce?: number;
+  /** Goal-only: true when all coins collected. */
+  goalReady?: boolean;
   /** Decoration: parallax scroll factor (0 = fixed, 1 = moves with world). */
   parallaxFactor?: number;
   /** Sunset background layer depth (sky vs hills). */
@@ -142,7 +145,11 @@ export interface PhysicsContext {
   checkpoint: SpawnPoint;
   interactionHandlersRegistered: boolean;
   totalCoins: number;
+  coinsCleared: boolean;
   levelComplete: boolean;
+  gameOver: boolean;
+  lives: number;
+  maxLives: number;
   levelIndex: number;
   elapsedMs: number;
   /** Monotonic clock for day/night + seasons (resets on full restart). */

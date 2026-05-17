@@ -1,5 +1,6 @@
 import Matter from 'matter-js';
 import { GRAVITY_Y } from '../constants';
+import { LIVES_PER_RUN } from '../constants/world';
 import type { AmbienceSettings } from '../constants/ambienceDefaults';
 import { DEFAULT_AMBIENCE } from '../constants/ambienceDefaults';
 import type { PhysicsContext, Viewport } from '../types/ecs';
@@ -27,7 +28,11 @@ export function createPhysicsContext(
     checkpoint: { x: 0, y: 0 },
     interactionHandlersRegistered: false,
     totalCoins: 0,
+    coinsCleared: false,
     levelComplete: false,
+    gameOver: false,
+    lives: LIVES_PER_RUN,
+    maxLives: LIVES_PER_RUN,
     levelIndex,
     elapsedMs: 0,
     ambientClockMs,

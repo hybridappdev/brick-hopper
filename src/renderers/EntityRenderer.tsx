@@ -21,6 +21,7 @@ function EntityRendererComponent({
         entityType === 'coin' && styles.coin,
         entityType === 'enemy' && styles.enemy,
         entityType === 'jumpPad' && styles.jumpPad,
+        entityType === 'goal' && styles.goal,
         {
           left: x - sprite.width / 2,
           top: y - sprite.height / 2,
@@ -48,5 +49,10 @@ const styles = StyleSheet.create({
   jumpPad: {
     borderRadius: 4,
     opacity: 0.9,
+  },
+  goal: {
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.5)',
   },
 });

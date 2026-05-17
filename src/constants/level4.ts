@@ -93,5 +93,6 @@ export function buildLevel4(groundY: number, viewportWidth: number): LevelDef {
       { id: 'l4_jump_pad_b', x: 1080, y: groundY - 108 },
       { id: 'l4_jump_pad_c', x: 1640, y: groundY - 108 },
     ],
+    goal: { id: 'l4_goal_end', x: 2000, y: groundY - 168 },
   };
 }

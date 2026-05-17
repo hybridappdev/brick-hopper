@@ -284,7 +284,7 @@ export function LevelCompleteOverlay({
 
           <Staggered delay={340} style={styles.titleBlock}>
             <Text style={[styles.title, isLastLevel && styles.titleWin]}>{title}</Text>
-            <Text style={styles.subtitle}>All coins collected</Text>
+            <Text style={styles.subtitle}>Coins collected · Exit reached</Text>
           </Staggered>
 
           <Staggered delay={480} style={styles.scoreBlock}>
