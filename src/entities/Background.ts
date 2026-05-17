@@ -7,7 +7,7 @@ import {
   PARALLAX_SKY_FACTOR,
 } from '../constants/background';
 import { GroundVignetteRenderer } from '../renderers/GroundVignetteRenderer';
-import { SunsetBackgroundRenderer } from '../renderers/SunsetBackgroundRenderer';
+import { ImmersiveBackgroundRenderer } from '../renderers/ImmersiveBackgroundRenderer';
 import type { GameEntity, Viewport } from '../types/ecs';
 
 export type BackgroundLayerEntity = GameEntity & {
@@ -30,7 +30,7 @@ function createBackgroundLayer(
     sprite: createSprite(width, viewport.height, 'transparent'),
     parallaxFactor,
     layer,
-    renderer: SunsetBackgroundRenderer,
+    renderer: ImmersiveBackgroundRenderer,
   };
 }
 

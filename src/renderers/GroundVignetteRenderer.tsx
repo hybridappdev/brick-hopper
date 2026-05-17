@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import type { RendererProps } from '../types/ecs';
 
 /** Darkens the bottom of the screen so platforms read clearly (Mario-style). */
-function GroundVignetteRendererComponent({ sprite }: RendererProps) {
+function GroundVignetteRendererComponent({ sprite, ambient }: RendererProps) {
   return (
     <View
       pointerEvents="none"
@@ -12,6 +12,7 @@ function GroundVignetteRendererComponent({ sprite }: RendererProps) {
         {
           width: sprite.width,
           height: sprite.height,
+          backgroundColor: ambient?.vignetteColor ?? 'rgba(15, 26, 51, 0.35)',
         },
       ]}
     />
@@ -25,6 +26,5 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 20, 40, 0.35)',
   },
 });

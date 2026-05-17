@@ -4,6 +4,8 @@ import { JUMP_PAD_FORCE } from '../constants';
 import type { EntityMap, GameEntity } from '../types/ecs';
 import { isGameEntity } from '../types/ecs';
 import { collectCoin, collectCoinsInRange } from '../utils/coinCollect';
+import { defeatEnemy } from '../utils/defeatEnemy';
+import { isStompHit } from '../utils/enemyStomp';
 import { respawnPlayer } from '../utils/playerRespawn';
 import { getPhysicsContext } from '../utils/physics';
 
@@ -69,8 +71,13 @@ function registerInteractionHandlers(
       }
 
       if (other?.entity.entityType === 'enemy') {
-        respawnPlayer(player, entities);
-        dispatch({ type: 'player-hit' });
+        if (isStompHit(player, other.entity)) {
+          defeatEnemy(entities, other.key, other.entity, player, dispatch);
+        } else if ((player.invincibleUntilMs ?? 0) <= 0) {
+          respawnPlayer(player, entities);
+          player.invincibleUntilMs = 800;
+          dispatch({ type: 'player-hit' });
+        }
         continue;
       }
 

@@ -1,5 +1,5 @@
 import { ENEMY_PATROL_SPEED } from '../constants';
-import { buildLevel1 } from '../constants/level';
+import { buildLevel } from '../constants/levels';
 import { createBackgroundEntities } from '../entities/Background';
 import { createCoinEntity } from '../entities/Coin';
 import { createEnemyEntity } from '../entities/Enemy';
@@ -12,7 +12,7 @@ import { clampCameraX, getWorldCenterX } from './camera';
 export function createInitialEntities(physics: PhysicsContext): EntityMap {
   const { height: viewportHeight, width: viewportWidth } = physics.viewport;
   const groundY = viewportHeight - 120;
-  const level = buildLevel1(groundY, viewportWidth);
+  const level = buildLevel(physics.levelIndex, groundY, viewportWidth);
 
   physics.playerSpawn = { ...level.playerSpawn };
   physics.camera.x = clampCameraX(
@@ -25,7 +25,7 @@ export function createInitialEntities(physics: PhysicsContext): EntityMap {
   };
   physics.totalCoins = level.coins.length;
   physics.levelComplete = false;
-  physics.score = 0;
+  physics.elapsedMs = 0;
   physics.collisionHandlersRegistered = false;
   physics.interactionHandlersRegistered = false;
 

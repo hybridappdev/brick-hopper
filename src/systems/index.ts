@@ -1,3 +1,5 @@
+import { TimerSystem } from './TimerSystem';
+import { AmbientSystem } from './AmbientSystem';
 import { CameraSystem } from './CameraSystem';
 import { CollisionSystem } from './CollisionSystem';
 import { PatrolSystem } from './PatrolSystem';
@@ -7,6 +9,8 @@ import { PhysicsSystem } from './PhysicsSystem';
 import { RenderSystem } from './RenderSystem';
 
 export {
+  TimerSystem,
+  AmbientSystem,
   PhysicsSystem,
   MovementSystem,
   CameraSystem,
@@ -18,6 +22,8 @@ export {
 
 /** Order: camera scroll → brick at center → physics → render. */
 export const GAME_SYSTEMS = [
+  TimerSystem,
+  AmbientSystem,
   CollisionSystem,
   InteractionSystem,
   PatrolSystem,

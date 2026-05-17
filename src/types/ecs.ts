@@ -1,5 +1,6 @@
 import type Matter from 'matter-js';
 import type { ComponentType } from 'react';
+import type { AmbientSnapshot } from '../utils/ambient';
 
 export type EntityType =
   | 'player'
@@ -42,6 +43,8 @@ export interface RendererProps {
   sprite: SpriteComponent;
   entityType: EntityType;
   parallaxFactor?: number;
+  ambient?: AmbientSnapshot;
+  layer?: 'sky' | 'hills';
 }
 
 export interface PatrolComponent {
@@ -70,6 +73,8 @@ export interface GameEntity {
   autoHopTimerMs?: number;
   /** Player-only: previous frame grounded state (for landing detection). */
   wasGrounded?: boolean;
+  /** Player-only: ms remaining before enemy hits can hurt again. */
+  invincibleUntilMs?: number;
   /** Player-only: last applied hop direction (detect aim changes). */
   lastHopDirection?: -1 | 0 | 1;
   /** Coin-only: point value when collected. */
@@ -84,7 +89,11 @@ export interface GameEntity {
   parallaxFactor?: number;
   /** Sunset background layer depth (sky vs hills). */
   layer?: 'sky' | 'hills';
+  /** Decoration: synced each frame from AmbientSystem. */
+  ambient?: AmbientSnapshot;
 }
+
+export type { AmbientSnapshot };
 
 export interface SpawnPoint {
   x: number;
@@ -131,6 +140,11 @@ export interface PhysicsContext {
   interactionHandlersRegistered: boolean;
   totalCoins: number;
   levelComplete: boolean;
+  levelIndex: number;
+  elapsedMs: number;
+  /** Monotonic clock for day/night + seasons (resets on full restart). */
+  ambientClockMs: number;
+  ambient: AmbientSnapshot;
 }
 
 export interface PhysicsEntity {

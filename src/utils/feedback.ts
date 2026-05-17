@@ -1,8 +1,14 @@
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 
+let hapticsEnabled = true;
+
+export function setHapticsEnabled(enabled: boolean): void {
+  hapticsEnabled = enabled;
+}
+
 async function safeImpact(style: Haptics.ImpactFeedbackStyle): Promise<void> {
-  if (Platform.OS === 'web') {
+  if (Platform.OS === 'web' || !hapticsEnabled) {
     return;
   }
   try {
@@ -13,7 +19,7 @@ async function safeImpact(style: Haptics.ImpactFeedbackStyle): Promise<void> {
 }
 
 async function safeNotification(type: Haptics.NotificationFeedbackType): Promise<void> {
-  if (Platform.OS === 'web') {
+  if (Platform.OS === 'web' || !hapticsEnabled) {
     return;
   }
   try {
@@ -37,4 +43,8 @@ export function playHitFeedback(): void {
 
 export function playLevelCompleteFeedback(): void {
   void safeNotification(Haptics.NotificationFeedbackType.Success);
+}
+
+export function playStompFeedback(): void {
+  void safeImpact(Haptics.ImpactFeedbackStyle.Medium);
 }

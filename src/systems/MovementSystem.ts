@@ -38,6 +38,7 @@ export const MovementSystem = (
   }
 
   tickHopCooldown(player, delta);
+  tickInvincibility(player, delta);
   syncPlayerToViewportCenter(player, physics);
   updateCheckpoint(player, physics);
   updateVerticalAutoHop(player, physics.input.hopSpeed, delta, args);
@@ -49,6 +50,12 @@ export const MovementSystem = (
 function tickHopCooldown(player: GameEntity, delta: number): void {
   if ((player.hopCooldownMs ?? 0) > 0) {
     player.hopCooldownMs = Math.max(0, (player.hopCooldownMs ?? 0) - delta);
+  }
+}
+
+function tickInvincibility(player: GameEntity, delta: number): void {
+  if ((player.invincibleUntilMs ?? 0) > 0) {
+    player.invincibleUntilMs = Math.max(0, (player.invincibleUntilMs ?? 0) - delta);
   }
 }
 
