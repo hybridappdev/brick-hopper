@@ -1,0 +1,15 @@
+export const COLORS = {
+  sky: '#1a1a2e',
+  player: '#e94560',
+  platform: '#5dd39e',
+  ground: '#16213e',
+  coin: '#f5c542',
+  enemy: '#9b59b6',
+  jumpPad: '#3498db',
+  parallaxFar: '#0f3460',
+  parallaxMid: '#162447',
+  parallaxGround: '#1b1b2f',
+  controlBg: 'rgba(255,255,255,0.12)',
+  controlActive: 'rgba(233,69,96,0.45)',
+  scoreText: '#eaeaea',
+} as const;
