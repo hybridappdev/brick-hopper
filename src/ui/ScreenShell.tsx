@@ -1,17 +1,19 @@
 import React from 'react';
 import {
-  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SUNSET_BACKGROUND } from '../constants/background';
+import { AmbientStatusBadge } from '../components/AmbientStatusBadge';
 import { COLORS } from '../constants';
+import { useApp } from '../context/AppContext';
+import { AmbientPreviewProvider } from '../context/AmbientPreviewContext';
 import { PrimaryButton } from './PrimaryButton';
 
 interface ScreenShellProps {
@@ -21,6 +23,10 @@ interface ScreenShellProps {
   children: React.ReactNode;
   contentStyle?: ViewStyle;
   scroll?: boolean;
+  /** Fast-forward day/night + seasons behind menu screens. */
+  ambientPreview?: boolean;
+  /** Show live season / time-of-day chip (requires ambientPreview). */
+  showAmbientBadge?: boolean;
 }
 
 export function ScreenShell({
@@ -30,57 +36,78 @@ export function ScreenShell({
   children,
   contentStyle,
   scroll = false,
+  ambientPreview = true,
+  showAmbientBadge = true,
 }: ScreenShellProps) {
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const { settings } = useApp();
 
   const body = (
     <View style={[styles.content, contentStyle]}>
+      {ambientPreview && showAmbientBadge && <AmbientStatusBadge />}
       {title && <Text style={styles.title}>{title}</Text>}
       {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
       {children}
     </View>
   );
 
-  return (
-    <ImageBackground source={SUNSET_BACKGROUND} style={styles.bg} resizeMode="cover">
-      <View style={[styles.overlay, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}>
-        {onBack && (
-          <PrimaryButton
-            label="← Back"
-            variant="ghost"
-            onPress={onBack}
-            style={styles.backButton}
-          />
-        )}
+  const shell = (
+    <View
+      style={[
+        styles.overlay,
+        { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 },
+      ]}
+    >
+      {onBack && (
+        <PrimaryButton
+          label="← Back"
+          variant="ghost"
+          onPress={onBack}
+          style={styles.backButton}
+        />
+      )}
 
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          {scroll ? (
-            <ScrollView
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              {body}
-            </ScrollView>
-          ) : (
-            body
-          )}
-        </KeyboardAvoidingView>
-      </View>
-    </ImageBackground>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        {scroll ? (
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {body}
+          </ScrollView>
+        ) : (
+          body
+        )}
+      </KeyboardAvoidingView>
+    </View>
+  );
+
+  return (
+    <View style={styles.bg}>
+      {ambientPreview ? (
+        <AmbientPreviewProvider width={width} height={height} ambience={settings.ambience}>
+          {shell}
+        </AmbientPreviewProvider>
+      ) : (
+        shell
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   bg: {
     flex: 1,
+    backgroundColor: COLORS.sky,
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(10, 14, 31, 0.72)',
+    backgroundColor: 'rgba(10, 14, 31, 0.58)',
     paddingHorizontal: 24,
   },
   flex: {

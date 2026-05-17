@@ -26,12 +26,15 @@ export function createInitialEntities(physics: PhysicsContext): EntityMap {
   physics.totalCoins = level.coins.length;
   physics.levelComplete = false;
   physics.elapsedMs = 0;
-  physics.collisionHandlersRegistered = false;
   physics.interactionHandlersRegistered = false;
 
   const entities: EntityMap = {
     physics: { physics },
-    ...createBackgroundEntities(physics.viewport),
+    ...createBackgroundEntities(
+      physics.viewport,
+      physics.displayAmbient,
+      physics.ambience,
+    ),
   };
 
   for (const platform of level.platforms) {

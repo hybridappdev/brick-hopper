@@ -1,6 +1,4 @@
 import {
-  DAY_CYCLE_MS,
-  SEASON_CYCLE_MS,
   SEASON_NAMES,
   SEASON_TINT,
   SEASON_TINT_OPACITY,
@@ -8,7 +6,14 @@ import {
   TINT_PALETTE,
   type SeasonName,
 } from '../constants/ambient';
+import {
+  DEFAULT_AMBIENCE,
+  type AmbienceSettings,
+} from '../constants/ambienceDefaults';
+import type { WeatherName } from '../constants/weather';
 import { lerpColor } from './color';
+import { resolveSeason, resolveTimePhase, resolveWeather } from './resolveAmbience';
+import { applyWeatherToSky, weatherLabelFromIntensities } from './weather';
 
 export interface AmbientSnapshot {
   /** 0–1 position in the day/night loop. */
@@ -34,6 +39,16 @@ export interface AmbientSnapshot {
   moonX: number;
   /** Vertical offset factor for celestial arc (0–1). */
   celestialY: number;
+  /** 0–1 position in the weather loop. */
+  weatherPhase: number;
+  weather: WeatherName;
+  weatherLabel: string;
+  cloudCover: number;
+  rainIntensity: number;
+  snowIntensity: number;
+  stormIntensity: number;
+  /** Drives rain/snow/cloud animation (ms). */
+  weatherAnimMs: number;
 }
 
 interface TimeKeyframe {
@@ -97,13 +112,6 @@ function sampleKeyframes(phase: number, keyframes: TimeKeyframe[]): TimeSample {
   };
 }
 
-function seasonAt(phase: number): { season: SeasonName; localT: number } {
-  const p = ((phase % 1) + 1) % 1;
-  const index = Math.min(SEASON_NAMES.length - 1, Math.floor(p * SEASON_NAMES.length));
-  const localT = p * SEASON_NAMES.length - index;
-  return { season: SEASON_NAMES[index], localT };
-}
-
 function blendSeasonTint(baseTint: string, baseOpacity: number, season: SeasonName, localT: number): {
   tintColor: string;
   tintOpacity: number;
@@ -117,13 +125,22 @@ function blendSeasonTint(baseTint: string, baseOpacity: number, season: SeasonNa
   };
 }
 
+export interface ComputeAmbientOptions {
+  /** Separate clock for weather when sky should advance faster (menu preview). */
+  weatherClockMs?: number;
+}
+
 /** Builds the current sky mood from a monotonic ambient clock (ms). */
-export function computeAmbient(ambientClockMs: number): AmbientSnapshot {
-  const timePhase = (ambientClockMs % DAY_CYCLE_MS) / DAY_CYCLE_MS;
-  const seasonPhase = (ambientClockMs % SEASON_CYCLE_MS) / SEASON_CYCLE_MS;
+export function computeAmbient(
+  ambientClockMs: number,
+  ambience: AmbienceSettings = DEFAULT_AMBIENCE,
+  options?: ComputeAmbientOptions,
+): AmbientSnapshot {
+  const weatherClockMs = options?.weatherClockMs ?? ambientClockMs;
+  const timePhase = resolveTimePhase(ambientClockMs, ambience);
+  const { season, localT, seasonPhase } = resolveSeason(ambientClockMs, ambience);
 
   const timeSample = sampleKeyframes(timePhase, TIME_KEYFRAMES);
-  const { season, localT } = seasonAt(seasonPhase);
   const seasonBlend = blendSeasonTint(
     timeSample.tintColor,
     timeSample.tintOpacity,
@@ -132,19 +149,42 @@ export function computeAmbient(ambientClockMs: number): AmbientSnapshot {
   );
 
   const sunHeight = Math.sin(timePhase * Math.PI);
-  const sunOpacity = Math.max(0, Math.min(1, sunHeight * 1.4)) * timeSample.daylight;
-  const moonOpacity = Math.max(0, 1 - timeSample.daylight * 1.2) * timeSample.starOpacity;
+  let sunOpacity = Math.max(0, Math.min(1, sunHeight * 1.4)) * timeSample.daylight;
+  let moonOpacity = Math.max(0, 1 - timeSample.daylight * 1.2) * timeSample.starOpacity;
+  let starOpacity = timeSample.starOpacity;
+
+  const weatherResolved = resolveWeather(weatherClockMs, season, ambience);
+  const skyWeather = applyWeatherToSky(
+    timeSample.skyColor,
+    seasonBlend.tintColor,
+    seasonBlend.tintOpacity,
+    timeSample.daylight,
+    weatherResolved.intensities,
+  );
+
+  sunOpacity *= skyWeather.sunScale;
+  starOpacity *= skyWeather.starScale;
 
   return {
     ...timeSample,
     seasonPhase,
     season,
-    tintColor: seasonBlend.tintColor,
-    tintOpacity: seasonBlend.tintOpacity,
+    skyColor: skyWeather.skyColor,
+    tintColor: skyWeather.tintColor,
+    tintOpacity: skyWeather.tintOpacity,
+    starOpacity,
     sunOpacity,
     moonOpacity,
     celestialX: timePhase,
     moonX: (timePhase + 0.52) % 1,
     celestialY: 0.12 + sunHeight * 0.22,
+    weatherPhase: weatherResolved.weatherPhase,
+    weather: weatherResolved.weather,
+    weatherLabel: weatherLabelFromIntensities(weatherResolved.intensities),
+    cloudCover: weatherResolved.intensities.cloudCover,
+    rainIntensity: weatherResolved.intensities.rainIntensity,
+    snowIntensity: weatherResolved.intensities.snowIntensity,
+    stormIntensity: weatherResolved.intensities.stormIntensity,
+    weatherAnimMs: weatherClockMs,
   };
 }

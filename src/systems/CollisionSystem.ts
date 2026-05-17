@@ -2,6 +2,7 @@ import type { EntityMap, GameEntity } from '../types/ecs';
 import { isGameEntity } from '../types/ecs';
 import { COYOTE_TIME_MS, MAX_PHYSICS_DELTA_MS, PHYSICS_DELTA_MS } from '../constants';
 import { isPlayerGroundedOnPlatforms } from '../utils/collision';
+import { getPhysicsContext } from '../utils/physics';
 
 /**
  * Per-frame ground detection (more reliable than collision events alone).
@@ -11,6 +12,11 @@ export const CollisionSystem = (
   entities: EntityMap,
   args: { time: { delta: number } },
 ): EntityMap => {
+  const physics = getPhysicsContext(entities);
+  if (physics.levelComplete) {
+    return entities;
+  }
+
   const player = entities.player;
   if (!player || !isGameEntity(player) || !player.collider) {
     return entities;

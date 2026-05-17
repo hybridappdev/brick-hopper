@@ -5,3 +5,6 @@ export const COIN_PICKUP_RADIUS = 28;
 
 /** Bonus reach when hopping at slow speed (precision mode). */
 export const COIN_PICKUP_SLOW_BONUS = 18;
+
+/** Ignore coin pickup right after spawn (starter coins sit on the hop path). */
+export const COIN_PICKUP_GRACE_MS = 900;

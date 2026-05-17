@@ -11,6 +11,10 @@ export const CameraSystem = (
   args: { time: { delta: number } },
 ): EntityMap => {
   const physics = getPhysicsContext(entities);
+  if (physics.levelComplete) {
+    return entities;
+  }
+
   const { width } = physics.viewport;
   const rawDelta = args.time.delta || PHYSICS_DELTA_MS;
   const frameScale = rawDelta / PHYSICS_DELTA_MS;

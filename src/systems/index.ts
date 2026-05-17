@@ -20,7 +20,7 @@ export {
   RenderSystem,
 };
 
-/** Order: camera scroll → brick at center → physics → render. */
+/** Timer → ambient → collisions → interactions → patrol → camera → movement → physics → render. */
 export const GAME_SYSTEMS = [
   TimerSystem,
   AmbientSystem,

@@ -32,6 +32,7 @@ export function IntroScreen() {
 
       <View style={styles.actions}>
         <PrimaryButton label="Play" onPress={startGame} />
+        <PrimaryButton label="Levels" variant="secondary" onPress={() => navigate('levelPicker')} />
         <PrimaryButton label="High Scores" variant="secondary" onPress={() => navigate('highScores')} />
         <PrimaryButton label="Settings" variant="secondary" onPress={() => navigate('settings')} />
       </View>

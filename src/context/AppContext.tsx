@@ -6,10 +6,12 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import { LEVEL_COUNT } from '../constants/levels';
 import { createId, loadGameData, mergeHighScore, saveGameData } from '../storage/gameStorage';
 import {
   DEFAULT_SETTINGS,
   type AppScreen,
+  type GameRunMode,
   type GameSettings,
   type HighScoreEntry,
   type RunResult,
@@ -23,9 +25,14 @@ interface AppContextValue {
   settings: GameSettings;
   highScores: HighScoreEntry[];
   bestScore: number;
+  unlockedLevelMaxIndex: number;
+  gameStartLevel: number;
+  gameRunMode: GameRunMode;
   navigate: (screen: AppScreen) => void;
   startGame: () => void;
+  startLevel: (levelIndex: number) => void;
   exitGame: () => void;
+  unlockLevelProgress: (completedLevelIndex: number) => Promise<void>;
   saveProfile: (displayName: string, avatarColor: string) => Promise<void>;
   updateSettings: (patch: Partial<GameSettings>) => Promise<void>;
   recordRun: (result: RunResult) => Promise<void>;
@@ -41,6 +48,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS);
   const [highScores, setHighScores] = useState<HighScoreEntry[]>([]);
   const [bestScore, setBestScore] = useState(0);
+  const [unlockedLevelMaxIndex, setUnlockedLevelMaxIndex] = useState(0);
+  const [gameStartLevel, setGameStartLevel] = useState(0);
+  const [gameRunMode, setGameRunMode] = useState<GameRunMode>('campaign');
 
   useEffect(() => {
     let cancelled = false;
@@ -54,6 +64,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSettings(data.settings);
       setHighScores(data.highScores);
       setBestScore(data.bestScore);
+      setUnlockedLevelMaxIndex(data.unlockedLevelMaxIndex);
       setScreen(data.profile ? 'intro' : 'createProfile');
       setReady(true);
     })();
@@ -69,17 +80,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       settings?: GameSettings;
       highScores?: HighScoreEntry[];
       bestScore?: number;
+      unlockedLevelMaxIndex?: number;
     }) => {
       const nextProfile = patch.profile !== undefined ? patch.profile : profile;
       const nextSettings = patch.settings ?? settings;
       const nextHighScores = patch.highScores ?? highScores;
       const nextBest = patch.bestScore ?? bestScore;
+      const nextUnlocked =
+        patch.unlockedLevelMaxIndex !== undefined
+          ? patch.unlockedLevelMaxIndex
+          : unlockedLevelMaxIndex;
 
       await saveGameData({
         profile: nextProfile,
         settings: nextSettings,
         highScores: nextHighScores,
         bestScore: nextBest,
+        unlockedLevelMaxIndex: nextUnlocked,
       });
 
       if (patch.profile !== undefined) {
@@ -94,8 +111,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (patch.bestScore !== undefined) {
         setBestScore(patch.bestScore);
       }
+      if (patch.unlockedLevelMaxIndex !== undefined) {
+        setUnlockedLevelMaxIndex(patch.unlockedLevelMaxIndex);
+      }
     },
-    [profile, settings, highScores, bestScore],
+    [profile, settings, highScores, bestScore, unlockedLevelMaxIndex],
   );
 
   const navigate = useCallback((next: AppScreen) => {
@@ -103,8 +123,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const startGame = useCallback(() => {
+    setGameStartLevel(0);
+    setGameRunMode('campaign');
     setScreen('game');
   }, []);
+
+  const startLevel = useCallback((levelIndex: number) => {
+    setGameStartLevel(levelIndex);
+    setGameRunMode('level');
+    setScreen('game');
+  }, []);
+
+  const unlockLevelProgress = useCallback(
+    async (completedLevelIndex: number) => {
+      const nextUnlocked = Math.min(
+        LEVEL_COUNT - 1,
+        Math.max(unlockedLevelMaxIndex, completedLevelIndex + 1),
+      );
+      if (nextUnlocked === unlockedLevelMaxIndex) {
+        return;
+      }
+      await persist({ unlockedLevelMaxIndex: nextUnlocked });
+    },
+    [unlockedLevelMaxIndex, persist],
+  );
 
   const exitGame = useCallback(() => {
     setScreen('intro');
@@ -179,9 +221,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       settings,
       highScores,
       bestScore,
+      unlockedLevelMaxIndex,
+      gameStartLevel,
+      gameRunMode,
       navigate,
       startGame,
+      startLevel,
       exitGame,
+      unlockLevelProgress,
       saveProfile,
       updateSettings,
       recordRun,
@@ -194,9 +241,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       settings,
       highScores,
       bestScore,
+      unlockedLevelMaxIndex,
+      gameStartLevel,
+      gameRunMode,
       navigate,
       startGame,
+      startLevel,
       exitGame,
+      unlockLevelProgress,
       saveProfile,
       updateSettings,
       recordRun,

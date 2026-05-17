@@ -1,5 +1,6 @@
 import type { GameEngineUpdateEventOptionType } from 'react-native-game-engine';
 import {
+  COIN_PICKUP_GRACE_MS,
   COIN_PICKUP_RADIUS,
   COIN_PICKUP_SLOW_BONUS,
   COIN_RADIUS,
@@ -33,6 +34,10 @@ function checkLevelComplete(
   }
 }
 
+export function canPickupCoins(entities: EntityMap): boolean {
+  return getPhysicsContext(entities).elapsedMs >= COIN_PICKUP_GRACE_MS;
+}
+
 export function collectCoin(
   entities: EntityMap,
   coinKey: string,
@@ -40,6 +45,10 @@ export function collectCoin(
   dispatch: GameEngineUpdateEventOptionType['dispatch'],
 ): void {
   if (coin.collected || coin.entityType !== 'coin' || !coin.collider) {
+    return;
+  }
+
+  if (!canPickupCoins(entities)) {
     return;
   }
 

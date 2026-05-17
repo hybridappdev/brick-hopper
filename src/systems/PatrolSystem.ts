@@ -3,6 +3,7 @@ import { PHYSICS_DELTA_MS } from '../constants';
 import type { EntityMap } from '../types/ecs';
 import { isGameEntity } from '../types/ecs';
 import { isPlayerOnPlatform } from '../utils/collision';
+import { getPhysicsContext } from '../utils/physics';
 
 /**
  * Patrols enemies and moving platforms; carries the player on moving platforms.
@@ -11,6 +12,11 @@ export const PatrolSystem = (
   entities: EntityMap,
   args: { time: { delta: number } },
 ): EntityMap => {
+  const physics = getPhysicsContext(entities);
+  if (physics.levelComplete) {
+    return entities;
+  }
+
   const delta = args.time.delta || PHYSICS_DELTA_MS;
   const step = delta / PHYSICS_DELTA_MS;
   const player = entities.player;

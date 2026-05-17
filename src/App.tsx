@@ -1,11 +1,16 @@
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProvider } from './context/AppContext';
 import { AppRoot } from './navigation/AppRoot';
+import { preloadBackgroundAssets } from './utils/backgroundAssets';
 
 export default function App() {
+  useEffect(() => {
+    void preloadBackgroundAssets();
+  }, []);
+
   return (
     <SafeAreaProvider>
       <AppProvider>

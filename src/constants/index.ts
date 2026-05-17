@@ -7,5 +7,7 @@ export * from './enemy';
 export * from './coin';
 export * from './jumpPad';
 export * from './background';
+export * from './weather';
+export * from './ambienceDefaults';
 export * from './hop';
 export * from './tilt';

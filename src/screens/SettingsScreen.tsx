@@ -3,6 +3,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS } from '../constants';
 import { useApp } from '../context/AppContext';
 import type { HopLevel } from '../types/ecs';
+import { AmbienceSettingsPanel } from '../ui/AmbienceSettingsPanel';
 import { ScreenShell } from '../ui/ScreenShell';
 
 const HOP_OPTIONS: { level: HopLevel; label: string }[] = [
@@ -17,12 +18,28 @@ export function SettingsScreen() {
   return (
     <ScreenShell title="Settings" onBack={() => navigate('intro')} scroll>
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Sky & ambience</Text>
+        <AmbienceSettingsPanel
+          ambience={settings.ambience}
+          onChange={(patch) =>
+            void updateSettings({ ambience: { ...settings.ambience, ...patch } })
+          }
+        />
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Gameplay</Text>
 
         <ToggleRow
           label="Haptic feedback"
           value={settings.hapticsEnabled}
           onToggle={() => updateSettings({ hapticsEnabled: !settings.hapticsEnabled })}
+        />
+
+        <ToggleRow
+          label="Sound effects"
+          value={settings.soundEnabled}
+          onToggle={() => updateSettings({ soundEnabled: !settings.soundEnabled })}
         />
 
         <ToggleRow

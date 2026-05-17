@@ -1,24 +1,41 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   GameEngine as RNGameEngine,
   type GameEngineUpdateEventOptionType,
 } from 'react-native-game-engine';
-import { COLORS } from './constants';
+import { WeatherOverlay } from './components/WeatherOverlay';
 import { LEVEL_COUNT } from './constants/levels';
 import { GAME_SYSTEMS } from './systems';
+import type { AmbientSnapshot } from './utils/ambient';
+import {
+  applyAmbienceToPhysics,
+  syncBackgroundAmbient,
+} from './utils/applyAmbienceToPhysics';
 import type { EntityMap, InputPatch, InputState, PhysicsContext, Viewport } from './types/ecs';
-import type { GameSettings, RunResult, UserProfile } from './types/app';
+import type { GameRunMode, GameSettings, RunResult, UserProfile } from './types/app';
 import { isGameEntity } from './types/ecs';
-import { HopSpeedControls } from './ui/HopSpeedControls';
 import { TiltControls } from './ui/TiltControls';
+import { FloatingScorePopup } from './ui/FloatingScorePopup';
+import { GameTopBar } from './ui/GameTopBar';
 import { LevelCompleteOverlay } from './ui/LevelCompleteOverlay';
-import { MenuButton } from './ui/MenuButton';
-import { RestartButton } from './ui/RestartButton';
+import { useCameraShake } from './ui/useCameraShake';
+import { COIN_PICKUP_GRACE_MS } from './constants/coin';
+import { ENEMY_STOMP_SCORE } from './constants/enemy';
+import { COIN_VALUE } from './constants/score';
 import { createInitialEntities } from './utils/createInitialEntities';
 import { getWindowViewport } from './utils/dimensions';
-import { formatElapsed } from './utils/formatTime';
+import { countRemainingCoins } from './utils/levelProgress';
+import {
+  playCoinSound,
+  playHitSound,
+  playHopSound,
+  playStompSound,
+  playWinSound,
+  preloadSounds,
+  setSoundEnabled,
+} from './audio/soundManager';
 import {
   playCoinFeedback,
   playHitFeedback,
@@ -45,14 +62,19 @@ export interface GameEngineProps {
   profile: UserProfile;
   settings: GameSettings;
   bestScore: number;
+  startLevelIndex?: number;
+  runMode?: GameRunMode;
+  unlockedLevelMaxIndex?: number;
   onExit: () => void;
   onRunEnd: (result: RunResult) => void;
+  onLevelComplete?: (completedLevelIndex: number) => void;
 }
 
 function createGameSession(
   id: number,
   viewport: Viewport,
   levelIndex: number,
+  ambience: GameSettings['ambience'],
   options: SessionOptions = {},
 ): GameSession {
   const physics = createPhysicsContext(
@@ -60,6 +82,7 @@ function createGameSession(
     levelIndex,
     options.score ?? 0,
     options.ambientClockMs ?? 0,
+    ambience,
   );
   const entities = createInitialEntities(physics);
   return { id, physics, entities };
@@ -69,8 +92,12 @@ export function GameEngine({
   profile,
   settings,
   bestScore,
+  startLevelIndex = 0,
+  runMode = 'campaign',
+  unlockedLevelMaxIndex = 0,
   onExit,
   onRunEnd,
+  onLevelComplete,
 }: GameEngineProps) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -84,24 +111,68 @@ export function GameEngine({
   const sessionRef = useRef<GameSession | null>(null);
   const runRecordedRef = useRef(false);
   const runElapsedMsRef = useRef(0);
+  const startLevelRef = useRef(startLevelIndex);
+  startLevelRef.current = startLevelIndex;
+  const isCampaignRunRef = useRef(runMode === 'campaign');
+  isCampaignRunRef.current = runMode === 'campaign';
 
   const [session, setSession] = useState<GameSession>(() => {
     sessionSeqRef.current += 1;
-    const initial = createGameSession(sessionSeqRef.current, getWindowViewport(), 0);
+    const initial = createGameSession(
+      sessionSeqRef.current,
+      getWindowViewport(),
+      startLevelIndex,
+      settings.ambience,
+    );
     sessionRef.current = initial;
     return initial;
   });
 
   const [score, setScore] = useState(0);
-  const [levelIndex, setLevelIndex] = useState(0);
+  const [levelIndex, setLevelIndex] = useState(startLevelIndex);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [levelComplete, setLevelComplete] = useState(false);
-  const [skyColor, setSkyColor] = useState(session.physics.ambient.skyColor);
+  const [remainingCoins, setRemainingCoins] = useState(session.physics.totalCoins);
+  const [skyColor, setSkyColor] = useState(session.physics.displayAmbient.skyColor);
+  const [displayAmbient, setDisplayAmbient] = useState<AmbientSnapshot>(
+    session.physics.displayAmbient,
+  );
   const [isNewBest, setIsNewBest] = useState(false);
+  const [isOnPaceForBest, setIsOnPaceForBest] = useState(false);
+  const [scorePopups, setScorePopups] = useState<{ id: number; label: string }[]>([]);
+  const popupIdRef = useRef(0);
+  const { shakeX, triggerShake } = useCameraShake();
+
+  const pushScorePopup = useCallback((label: string) => {
+    popupIdRef.current += 1;
+    const id = popupIdRef.current;
+    setScorePopups((prev) => [...prev, { id, label }]);
+  }, []);
+
+  const removeScorePopup = useCallback((id: number) => {
+    setScorePopups((prev) => prev.filter((p) => p.id !== id));
+  }, []);
 
   useEffect(() => {
     setHapticsEnabled(settings.hapticsEnabled);
-  }, [settings.hapticsEnabled]);
+    setSoundEnabled(settings.soundEnabled);
+    preloadSounds();
+  }, [settings.hapticsEnabled, settings.soundEnabled]);
+
+  useEffect(() => {
+    const current = sessionRef.current;
+    if (!current) {
+      return;
+    }
+    applyAmbienceToPhysics(current.physics, settings.ambience, { smoothFactor: 0.22 });
+    syncBackgroundAmbient(
+      current.entities,
+      current.physics.displayAmbient,
+      settings.ambience,
+    );
+    setSkyColor(current.physics.displayAmbient.skyColor);
+    setDisplayAmbient({ ...current.physics.displayAmbient });
+  }, [settings.ambience]);
 
   useEffect(() => {
     const player = session.entities.player;
@@ -143,7 +214,13 @@ export function GameEngine({
       }
 
       sessionSeqRef.current += 1;
-      const next = createGameSession(sessionSeqRef.current, viewportRef.current, level, options);
+      const next = createGameSession(
+        sessionSeqRef.current,
+        viewportRef.current,
+        level,
+        settings.ambience,
+        options,
+      );
       sessionRef.current = next;
       runRecordedRef.current = false;
       setSession(next);
@@ -152,15 +229,19 @@ export function GameEngine({
       setElapsedMs(0);
       setLevelComplete(false);
       setIsNewBest(false);
-      setSkyColor(next.physics.ambient.skyColor);
+      setIsOnPaceForBest(false);
+      setRemainingCoins(next.physics.totalCoins);
+      setScorePopups([]);
+      setSkyColor(next.physics.displayAmbient.skyColor);
+      setDisplayAmbient({ ...next.physics.displayAmbient });
       next.physics.input = { ...initialInput, hopSpeed: settings.defaultHopSpeed };
     },
-    [settings.defaultHopSpeed],
+    [settings.ambience, settings.defaultHopSpeed],
   );
 
   const restartGame = useCallback(() => {
     runElapsedMsRef.current = 0;
-    startSession(0);
+    startSession(startLevelRef.current);
   }, [startSession]);
 
   const advanceToNextLevel = useCallback(() => {
@@ -183,10 +264,17 @@ export function GameEngine({
   }, [startSession]);
 
   const handleExitToMenu = useCallback(() => {
-    const completedAllLevels = levelIndex >= LEVEL_COUNT - 1 && levelComplete;
+    const completedAllLevels =
+      isCampaignRunRef.current &&
+      levelIndex >= LEVEL_COUNT - 1 &&
+      levelComplete;
     submitRun(completedAllLevels);
     onExit();
   }, [submitRun, levelIndex, levelComplete, onExit]);
+
+  const canAdvanceToNextLevel =
+    levelIndex < LEVEL_COUNT - 1 &&
+    (isCampaignRunRef.current || levelIndex + 1 <= unlockedLevelMaxIndex);
 
   useEffect(() => {
     if (levelComplete) {
@@ -195,16 +283,31 @@ export function GameEngine({
       return;
     }
 
-    const id = setInterval(() => {
+    const hudId = setInterval(() => {
       const physics = sessionRef.current?.physics;
       if (!physics) {
         return;
       }
       setElapsedMs(physics.elapsedMs);
-      setSkyColor(physics.ambient.skyColor);
+      setSkyColor(physics.displayAmbient.skyColor);
+      const current = sessionRef.current;
+      if (current) {
+        setRemainingCoins(countRemainingCoins(current.entities));
+      }
     }, 100);
 
-    return () => clearInterval(id);
+    const weatherId = setInterval(() => {
+      const physics = sessionRef.current?.physics;
+      if (!physics) {
+        return;
+      }
+      setDisplayAmbient({ ...physics.displayAmbient });
+    }, 33);
+
+    return () => {
+      clearInterval(hudId);
+      clearInterval(weatherId);
+    };
   }, [levelComplete, session.id]);
 
   const handleInputChange = useCallback((patch: InputPatch) => {
@@ -226,23 +329,40 @@ export function GameEngine({
             setScore(event.score);
           }
           break;
-        case 'coin-collected':
+        case 'coin-collected': {
           playCoinFeedback();
+          playCoinSound();
+          const pickupMs = sessionRef.current?.physics.elapsedMs ?? 0;
+          if (pickupMs >= COIN_PICKUP_GRACE_MS) {
+            pushScorePopup(`+${COIN_VALUE}`);
+          }
+          const current = sessionRef.current;
+          if (current) {
+            setRemainingCoins(countRemainingCoins(current.entities));
+          }
           break;
+        }
         case 'enemy-stomped':
           playStompFeedback();
+          playStompSound();
+          pushScorePopup(`+${ENEMY_STOMP_SCORE}`);
           break;
         case 'player-hit':
           playHitFeedback();
+          playHitSound();
+          triggerShake();
           break;
         case 'hop':
           playHopFeedback();
+          playHopSound();
           break;
         case 'jump-pad':
           playHopFeedback();
+          playHopSound();
           break;
         case 'level-complete': {
           playLevelCompleteFeedback();
+          playWinSound();
           setLevelComplete(true);
           const current = sessionRef.current;
           const currentScore = typeof event.score === 'number' ? event.score : score;
@@ -251,10 +371,14 @@ export function GameEngine({
           }
           const isWin =
             current !== null && current.physics.levelIndex >= LEVEL_COUNT - 1;
-          if (isWin) {
+          if (current) {
+            setRemainingCoins(countRemainingCoins(current.entities));
+            onLevelComplete?.(current.physics.levelIndex);
+          }
+          if (isWin && isCampaignRunRef.current) {
             submitRun(true);
           } else if (currentScore > bestScore) {
-            setIsNewBest(true);
+            setIsOnPaceForBest(true);
           }
           break;
         }
@@ -262,15 +386,20 @@ export function GameEngine({
           break;
       }
     },
-    [score, bestScore, submitRun],
+    [score, bestScore, submitRun, pushScorePopup, triggerShake, onLevelComplete],
   );
 
-  const hudTop = Math.max(insets.top, 12) + 8;
-  const hudSide = Math.max(insets.left, 16);
-  const controlsBottom = Math.max(insets.bottom, 16) + 12;
+  const hudTop = Math.max(insets.top, 12) + 6;
+  const hudPaddingLeft = Math.max(insets.left, 12);
+  const hudPaddingRight = Math.max(insets.right, 12);
+  const runElapsedMs = runElapsedMsRef.current + elapsedMs;
+  const totalCoinsInLevel = session.physics.totalCoins;
 
   return (
     <View style={[styles.container, { backgroundColor: skyColor }]}>
+      <Animated.View
+        style={[styles.shakeLayer, { transform: [{ translateX: shakeX }] }]}
+      >
       <RNGameEngine
         key={`engine-${session.id}`}
         style={styles.game}
@@ -280,29 +409,38 @@ export function GameEngine({
         ) => Record<string, unknown>)[]}
         entities={session.entities as Record<string, unknown>}
         onEvent={handleGameEvent}
-      >
-        <ScoreHud
-          playerName={profile.displayName}
-          score={score}
-          totalCoins={session.physics.totalCoins}
-          levelIndex={levelIndex}
-          elapsedMs={elapsedMs}
-          season={session.physics.ambient.season}
-          showTimer={settings.showTimer}
-          top={hudTop}
-          left={hudSide}
-        />
-      </RNGameEngine>
+      />
+      </Animated.View>
 
-      <View
-        style={[styles.chrome, { top: hudTop, right: Math.max(insets.right, 16) }]}
-        pointerEvents="box-none"
-      >
-        <View style={styles.chromeRow}>
-          <MenuButton onPress={handleExitToMenu} />
-          <RestartButton onPress={restartGame} />
-        </View>
+      <View style={styles.weatherLayer} pointerEvents="none">
+        <WeatherOverlay width={width} height={height} ambient={displayAmbient} />
       </View>
+
+      {scorePopups.map((popup) => (
+        <FloatingScorePopup
+          key={popup.id}
+          label={popup.label}
+          anchorTop={hudTop + 52}
+          anchorCenterX={width / 2}
+          onDone={() => removeScorePopup(popup.id)}
+        />
+      ))}
+
+      <GameTopBar
+        score={score}
+        bestScore={bestScore}
+        remainingCoins={remainingCoins}
+        totalCoins={totalCoinsInLevel}
+        levelIndex={levelIndex}
+        levelElapsedMs={elapsedMs}
+        runElapsedMs={runElapsedMs}
+        showTimer={settings.showTimer}
+        top={hudTop}
+        paddingLeft={hudPaddingLeft}
+        paddingRight={hudPaddingRight}
+        onMenu={handleExitToMenu}
+        onRestart={restartGame}
+      />
 
       <TiltControls
         key={`tilt-${session.id}`}
@@ -310,71 +448,21 @@ export function GameEngine({
         onInputChange={handleInputChange}
       />
 
-      <HopSpeedControls
-        key={`hop-${session.id}`}
-        enabled={!levelComplete}
-        onInputChange={handleInputChange}
-        bottom={controlsBottom}
-        initialSpeed={settings.defaultHopSpeed}
-      />
-
       {levelComplete && (
         <LevelCompleteOverlay
           score={score}
-          elapsedMs={elapsedMs}
+          levelElapsedMs={elapsedMs}
+          runElapsedMs={runElapsedMs}
           levelIndex={levelIndex}
           levelCount={LEVEL_COUNT}
           onNextLevel={advanceToNextLevel}
           onRestart={restartGame}
           onMenu={handleExitToMenu}
+          showNextLevel={canAdvanceToNextLevel}
           isNewBest={isNewBest}
+          isOnPaceForBest={isOnPaceForBest}
         />
       )}
-    </View>
-  );
-}
-
-function capitalizeSeason(season: string): string {
-  return season.charAt(0).toUpperCase() + season.slice(1);
-}
-
-function ScoreHud({
-  playerName,
-  score,
-  totalCoins,
-  levelIndex,
-  elapsedMs,
-  season,
-  showTimer,
-  top,
-  left,
-}: {
-  playerName: string;
-  score: number;
-  totalCoins: number;
-  levelIndex: number;
-  elapsedMs: number;
-  season: string;
-  showTimer: boolean;
-  top: number;
-  left: number;
-}) {
-  const hopHint =
-    Platform.OS === 'web'
-      ? 'Arrow keys · 1–3 hop speed'
-      : 'Tilt to explore · tap hop speed';
-
-  return (
-    <View style={[styles.hud, { top, left }]} pointerEvents="none">
-      <Text style={styles.playerName}>{playerName}</Text>
-      <Text style={styles.levelLabel}>
-        Level {levelIndex + 1} · {capitalizeSeason(season)}
-      </Text>
-      <Text style={styles.scoreLabel}>Score</Text>
-      <Text style={styles.scoreValue}>{score}</Text>
-      {showTimer && <Text style={styles.timer}>{formatElapsed(elapsedMs)}</Text>}
-      <Text style={styles.coinCount}>{totalCoins} coins in level</Text>
-      <Text style={styles.swipeHint}>{hopHint}</Text>
     </View>
   );
 }
@@ -383,65 +471,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  shakeLayer: {
+    flex: 1,
+  },
   game: {
     flex: 1,
     backgroundColor: 'transparent',
   },
-  chrome: {
-    position: 'absolute',
-    zIndex: 20,
-    elevation: 20,
-  },
-  chromeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  hud: {
-    position: 'absolute',
-  },
-  playerName: {
-    color: COLORS.scoreText,
-    fontSize: 13,
-    fontWeight: '700',
-    opacity: 0.85,
-    marginBottom: 2,
-  },
-  levelLabel: {
-    color: COLORS.scoreText,
-    fontSize: 12,
-    fontWeight: '700',
-    opacity: 0.6,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  scoreLabel: {
-    color: COLORS.scoreText,
-    fontSize: 14,
-    opacity: 0.7,
-    marginTop: 4,
-  },
-  scoreValue: {
-    color: COLORS.scoreText,
-    fontSize: 28,
-    fontWeight: '800',
-  },
-  timer: {
-    color: COLORS.scoreText,
-    fontSize: 16,
-    fontWeight: '600',
-    opacity: 0.65,
-    marginTop: 2,
-  },
-  coinCount: {
-    color: COLORS.scoreText,
-    fontSize: 12,
-    opacity: 0.5,
-    marginTop: 4,
-  },
-  swipeHint: {
-    color: COLORS.scoreText,
-    fontSize: 11,
-    opacity: 0.35,
-    marginTop: 8,
+  weatherLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 5,
+    elevation: 5,
   },
 });

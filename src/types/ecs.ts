@@ -1,5 +1,6 @@
 import type Matter from 'matter-js';
 import type { ComponentType } from 'react';
+import type { AmbienceSettings } from '../constants/ambienceDefaults';
 import type { AmbientSnapshot } from '../utils/ambient';
 
 export type EntityType =
@@ -44,6 +45,7 @@ export interface RendererProps {
   entityType: EntityType;
   parallaxFactor?: number;
   ambient?: AmbientSnapshot;
+  ambience?: AmbienceSettings;
   layer?: 'sky' | 'hills';
 }
 
@@ -91,6 +93,8 @@ export interface GameEntity {
   layer?: 'sky' | 'hills';
   /** Decoration: synced each frame from AmbientSystem. */
   ambient?: AmbientSnapshot;
+  /** Decoration: player ambience settings for first-frame sky fallback. */
+  ambience?: AmbienceSettings;
 }
 
 export type { AmbientSnapshot };
@@ -136,7 +140,6 @@ export interface PhysicsContext {
   playerSpawn: SpawnPoint;
   /** Last safe landing spot — used when falling off the map. */
   checkpoint: SpawnPoint;
-  collisionHandlersRegistered: boolean;
   interactionHandlersRegistered: boolean;
   totalCoins: number;
   levelComplete: boolean;
@@ -144,7 +147,10 @@ export interface PhysicsContext {
   elapsedMs: number;
   /** Monotonic clock for day/night + seasons (resets on full restart). */
   ambientClockMs: number;
+  ambience: AmbienceSettings;
   ambient: AmbientSnapshot;
+  /** Eased copy of `ambient` for rendering (reduces flicker). */
+  displayAmbient: AmbientSnapshot;
 }
 
 export interface PhysicsEntity {

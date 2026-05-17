@@ -12,6 +12,10 @@ export const PhysicsSystem = (
   args: { time: { delta: number } },
 ): EntityMap => {
   const physics = getPhysicsContext(entities);
+  if (physics.levelComplete) {
+    return entities;
+  }
+
   const rawDelta = args.time.delta || PHYSICS_DELTA_MS;
   const delta = Math.min(Math.max(rawDelta, 0), MAX_PHYSICS_DELTA_MS);
 

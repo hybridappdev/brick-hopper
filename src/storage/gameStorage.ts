@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DEFAULT_AMBIENCE } from '../constants/ambienceDefaults';
 import {
   DEFAULT_SETTINGS,
   type GameSettings,
@@ -14,6 +15,8 @@ export interface PersistedGameData {
   settings: GameSettings;
   highScores: HighScoreEntry[];
   bestScore: number;
+  /** Highest level index the player may start from the picker (0-based). */
+  unlockedLevelMaxIndex: number;
 }
 
 const DEFAULT_DATA: PersistedGameData = {
@@ -21,6 +24,7 @@ const DEFAULT_DATA: PersistedGameData = {
   settings: DEFAULT_SETTINGS,
   highScores: [],
   bestScore: 0,
+  unlockedLevelMaxIndex: 0,
 };
 
 export async function loadGameData(): Promise<PersistedGameData> {
@@ -32,9 +36,17 @@ export async function loadGameData(): Promise<PersistedGameData> {
     const parsed = JSON.parse(raw) as Partial<PersistedGameData>;
     return {
       profile: parsed.profile ?? null,
-      settings: { ...DEFAULT_SETTINGS, ...parsed.settings },
+      settings: {
+        ...DEFAULT_SETTINGS,
+        ...parsed.settings,
+        ambience: { ...DEFAULT_AMBIENCE, ...parsed.settings?.ambience },
+      },
       highScores: Array.isArray(parsed.highScores) ? parsed.highScores : [],
       bestScore: typeof parsed.bestScore === 'number' ? parsed.bestScore : 0,
+      unlockedLevelMaxIndex:
+        typeof parsed.unlockedLevelMaxIndex === 'number'
+          ? Math.max(0, parsed.unlockedLevelMaxIndex)
+          : 0,
     };
   } catch {
     return { ...DEFAULT_DATA };

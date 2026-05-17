@@ -1,4 +1,9 @@
+import type { AmbienceSettings } from '../constants/ambienceDefaults';
+import { DEFAULT_AMBIENCE } from '../constants/ambienceDefaults';
 import type { HopLevel } from './ecs';
+
+export type { AmbienceSettings };
+export { DEFAULT_AMBIENCE };
 
 export interface UserProfile {
   id: string;
@@ -9,8 +14,10 @@ export interface UserProfile {
 
 export interface GameSettings {
   hapticsEnabled: boolean;
+  soundEnabled: boolean;
   defaultHopSpeed: HopLevel;
   showTimer: boolean;
+  ambience: AmbienceSettings;
 }
 
 export interface HighScoreEntry {
@@ -34,12 +41,17 @@ export type AppScreen =
   | 'createProfile'
   | 'intro'
   | 'game'
+  | 'levelPicker'
   | 'settings'
   | 'highScores'
   | 'editProfile';
 
+export type GameRunMode = 'campaign' | 'level';
+
 export const DEFAULT_SETTINGS: GameSettings = {
   hapticsEnabled: true,
+  soundEnabled: true,
   defaultHopSpeed: 1,
   showTimer: true,
+  ambience: DEFAULT_AMBIENCE,
 };
